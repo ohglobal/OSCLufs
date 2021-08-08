@@ -1,0 +1,6 @@
+
+dist/
+build/
+__pycache__
+OSCLufs.sln
+.vs
