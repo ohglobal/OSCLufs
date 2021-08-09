@@ -4,8 +4,14 @@
 #Liminal Entertainment Technologies, LLC
 
 #Last updated 8/8/2021
+#Standard libraries
+import time
+
+#Numpy
+import numpy as np
 
 #OSC variables & libraries
+from app_setup import CHANNELS, FRAMES_PER_BUFFER, SAMPLE_RATE
 from pythonosc import dispatcher
 from pythonosc import osc_server
 from pythonosc import osc_message_builder
@@ -24,6 +30,52 @@ import soundfile
 
 #Print the names of all available audio devices
 import pyaudio
+
+#App setup
+from app_setup import (
+    SAMPLE_RATE,
+	FRAMES_PER_BUFFER,
+	CHANNELS)
+
+# from https://github.com/aniawsz/rtmonoaudio2midi
+class StreamProcessor(object):
+	def __init__(self, input_device, \
+				format = pyaudio.paInt16, \
+				input = True, \
+				sample_rate = SAMPLE_RATE, \
+				frames_per_buffer = FRAMES_PER_BUFFER, \
+				channels = CHANNELS):
+		self._input_device = input_device
+		self._format = format
+		self._input = input
+		self._sample_rate = sample_rate
+		self._frames_per_buffer = frames_per_buffer
+		self._channels = channels
+		self._meter = pyln.Meter(sample_rate)
+
+	def run(self):
+		pya = pyaudio.PyAudio()
+		self._stream = pya.open(
+			format=self._format,
+			channels=self._channels,
+			rate=self._channels,
+			input=self._input,
+			frames_per_buffer=self._frames_per_buffer,
+			stream_callback=self._process_frame
+		)
+		self._stream.start_stream()
+
+		while self._stream.is_active() and not self._stream.raw_input():
+			time.sleep(0.1)
+
+		self._stream.stop_stream()
+		self._stream.close()
+		pya.terminate()
+
+	def _process_frame(self, data, frame_count, time_info, status_flag):
+		data_array = np.fromstring(data, dtype=np.int16)
+		self.loudness = self.meter.integrated_loudness(data_array)
+
 audio_stream = pyaudio.PyAudio()
 
 print("ALL SYSTEM AUDIO DEVICES:")
@@ -44,7 +96,7 @@ micIndex = int(input())
 form_1 = pyaudio.paInt16 # 16-bit resolution
 chans = 2 # 2 channel
 samp_rate = 44100 # 44.1kHz sampling rate
-chunk = 1024 # 2^12 samples for buffer
+chunk = 4096 # 1024 # 2^12 samples for buffer
 durr = 0.5 #durration of sample
 file_name = "buffer.wav" #file name
 
@@ -55,7 +107,7 @@ stream = audio_stream.open(format = form_1,rate = samp_rate,channels = chans, \
 
 def getLufs(unused_addr):
 	#print("Running function!")
-	data = stream.read(chunk)
+	data = stream.read(chunk, exception_on_overflow = False)
 
 	frames = []
 	for i in range(0, int(samp_rate / chunk * durr)):
