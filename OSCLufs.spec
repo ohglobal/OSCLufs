@@ -1,6 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
 block_cipher = None
 
 
@@ -8,7 +7,7 @@ a = Analysis(['OSCLufs.py'],
              pathex=['C:\\Users\\Andy Carluccio\\Documents\\GitHub\\OSCLufs'],
              binaries=[],
              datas=[],
-             hiddenimports=[],
+             hiddenimports=['scipy.spatial.transform._rotation_groups', 'scipy.special.cython_special'],
              hookspath=[],
              runtime_hooks=[],
              excludes=[],
