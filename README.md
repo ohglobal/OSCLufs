@@ -12,6 +12,11 @@ Python Sound File for decoding the audio buffer: https://pypi.org/project/SoundF
 
 Pyloudnorm for calculating the lufs: https://github.com/csteinmetz1/pyloudnorm
 
+## Build
+Releases are built with pyinstaller using: pyinstaller --hidden-import scipy.spatial.transform._rotation_groups --hidden-import scipy.special.cython_special OSCLufs.py
+
+Anaconda is used due to issues with PyAudio, pip installed via Anaconda to manage incorporation of pyloudnorm
+
 ## OSC Commands
 
 OSC API for Controlling OSCTranscribe:
