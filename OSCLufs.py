@@ -35,7 +35,8 @@ import pyaudio
 from app_setup import (
     SAMPLE_RATE,
 	FRAMES_PER_BUFFER,
-	CHANNELS)
+	CHANNELS,
+	DURATION)
 
 # https://www.youtube.com/watch?v=at2NppqIZok
 # from https://github.com/aniawsz/rtmonoaudio2midi
@@ -45,37 +46,63 @@ class StreamProcessor(object):
 				input = True, \
 				sample_rate = SAMPLE_RATE, \
 				frames_per_buffer = FRAMES_PER_BUFFER, \
-				channels = CHANNELS):
+				channels = CHANNELS, \
+				duration = DURATION, \
+				file_name = "buffer.wav"):
 		self._input_device = input_device
 		self._format = format
 		self._input = input
 		self._sample_rate = sample_rate
 		self._frames_per_buffer = frames_per_buffer
 		self._channels = channels
+		self._file_name = file_name
 		self._meter = pyln.Meter(sample_rate)
+		self._duration = duration
 
 	def run(self):
 		pya = pyaudio.PyAudio()
 		self._stream = pya.open(
 			format=self._format,
 			channels=self._channels,
-			rate=self._channels,
+			rate=self._sample_rate,
 			input=self._input,
 			frames_per_buffer=self._frames_per_buffer,
 			stream_callback=self._process_frame
 		)
 		self._stream.start_stream()
 
-		while self._stream.is_active() and not self._stream.raw_input():
+		while self._stream.is_active(): #and not self._stream.raw_input():
 			time.sleep(0.1)
 
 		self._stream.stop_stream()
 		self._stream.close()
 		pya.terminate()
 
+	def _store_frame(self, data):
+		frames = []
+		for i in range(0, int(self._sample_rate / self._frames_per_buffer * self._duration)):
+			frames.append(data)
+
+		#conform the buffer to wav
+		waveFile = wave.open(self._file_name, 'wb')
+		waveFile.setnchannels(self._channels)
+		waveFile.setsampwidth(audio_stream.get_sample_size(self._format))
+		waveFile.setframerate(self._sample_rate)
+		waveFile.writeframes(b''.join(frames))
+		waveFile.close()
+
+	def _calculate_lufs(self):
+		#pull in the wav for analysis
+		dat, rt = soundfile.read(self._file_name)
+		self._loudness = self._meter.integrated_loudness(dat) # measure loudness
+
 	def _process_frame(self, data, frame_count, time_info, status_flag):
-		data_array = np.fromstring(data, dtype=np.int16)
-		self.loudness = self.meter.integrated_loudness(data_array)
+		self._store_frame(data)
+		self._calculate_lufs()
+		return (data, pyaudio.paComplete)
+
+	def getLoudness(self):
+		return self._loudness
 
 audio_stream = pyaudio.PyAudio()
 
@@ -93,43 +120,13 @@ print("Please select the audio device to listen to:")
 
 micIndex = int(input())
 
-#Other audio parameters
-form_1 = pyaudio.paInt16 # 16-bit resolution
-chans = 2 # 2 channel
-samp_rate = 44100 # 44.1kHz sampling rate
-chunk = 1024 # 2^12 samples for buffer
-durr = 0.5 #durration of sample
-file_name = "buffer.wav" #file name
-
-# create pyaudio stream
-stream = audio_stream.open(format = form_1,rate = samp_rate,channels = chans, \
-                    input_device_index = micIndex,input = True, \
-                    frames_per_buffer=chunk)
-
 def getLufs(unused_addr):
 	#print("Running function!")
-	data = stream.read(chunk, exception_on_overflow = False)
+	sp = StreamProcessor(micIndex)
+	sp.run()
 
-	frames = []
-	for i in range(0, int(samp_rate / chunk * durr)):
-		data = stream.read(chunk)
-		frames.append(data)
-
-	#conform the buffer to wav
-	waveFile = wave.open(file_name, 'wb')
-	waveFile.setnchannels(chans)
-	waveFile.setsampwidth(audio_stream.get_sample_size(form_1))
-	waveFile.setframerate(samp_rate)
-	waveFile.writeframes(b''.join(frames))
-	waveFile.close()
-
-	#pull in the wav for analysis
-	dat, rt = soundfile.read("buffer.wav")
-	meter = pyln.Meter(rt) # create BS.1770 meter
-	loudness = meter.integrated_loudness(dat) # measure loudness
-	
 	#send the loundess as OSC
-	client.send_message("/OSCLufs/lufs", loudness)
+	client.send_message("/OSCLufs/lufs", sp.getLoudness())
 
 
 if __name__ == "__main__":
