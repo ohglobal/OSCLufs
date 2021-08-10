@@ -37,6 +37,7 @@ from app_setup import (
 	FRAMES_PER_BUFFER,
 	CHANNELS)
 
+# https://www.youtube.com/watch?v=at2NppqIZok
 # from https://github.com/aniawsz/rtmonoaudio2midi
 class StreamProcessor(object):
 	def __init__(self, input_device, \
@@ -96,7 +97,7 @@ micIndex = int(input())
 form_1 = pyaudio.paInt16 # 16-bit resolution
 chans = 2 # 2 channel
 samp_rate = 44100 # 44.1kHz sampling rate
-chunk = 4096 # 1024 # 2^12 samples for buffer
+chunk = 1024 # 2^12 samples for buffer
 durr = 0.5 #durration of sample
 file_name = "buffer.wav" #file name
 
