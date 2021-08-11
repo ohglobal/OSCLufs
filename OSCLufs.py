@@ -37,6 +37,7 @@ from app_setup import (
     SAMPLE_RATE,
 	FRAMES_PER_BUFFER,
 	CHANNELS,
+	MIN_LOUDNESS,
 	DURATION)
 
 # JCR: Resources - https://www.youtube.com/watch?v=at2NppqIZok and https://github.com/aniawsz/rtmonoaudio2midi
@@ -47,6 +48,7 @@ class StreamProcessor(object):
 				sample_rate = SAMPLE_RATE, \
 				frames_per_buffer = FRAMES_PER_BUFFER, \
 				channels = CHANNELS, \
+				min_loudness = MIN_LOUDNESS, \
 				duration = DURATION, \
 				file_name = "buffer.wav"):
 		self._input_device = input_device
@@ -55,6 +57,7 @@ class StreamProcessor(object):
 		self._sample_rate = sample_rate
 		self._frames_per_buffer = frames_per_buffer
 		self._channels = channels
+		self._min_loudness = min_loudness
 		self._file_name = file_name
 		self._meter = pyln.Meter(sample_rate)
 		self._duration = duration
@@ -86,7 +89,13 @@ class StreamProcessor(object):
 
 		total_data = b''.join(frames)
 		data_samples = np.frombuffer(total_data,dtype=np.float32)
-		self._loudness = self._meter.integrated_loudness(data_samples) # measure loudness
+
+		# Limiter lower output value
+		inmetiate_loudness  = self._meter.integrated_loudness(data_samples) # measure loudness
+		if(inmetiate_loudness < self._min_loudness):
+			self._loudness = self._min_loudness
+		else:
+			self._loudness = inmetiate_loudness
 
 		#conform the buffer to wav
 		#waveFile = wave.open(self._file_name, 'wb')
