@@ -1,20 +1,11 @@
 #OSCLufs
 #Office Hours Global Community Project
-#Maintained and updated by Andy Carluccio - Washington, D.C.
+#Created and maintained by Andy Carluccio - Washington, D.C.
 
 #Contributors:
 #Juan C. Robles - Mexico City, MX
 
-
-#Last updated 8/10/2021
-
-#Standard Libraries
-import time
-import argparse
-import sys
-
-#Numpy
-import numpy as np
+#Last updated 8/11/2021
 
 #OSC variables & libraries
 from app_setup import CHANNELS, FRAMES_PER_BUFFER, SAMPLE_RATE
@@ -23,10 +14,18 @@ from pythonosc import osc_server
 from pythonosc import osc_message_builder
 from pythonosc import udp_client 
 
+#Argument management and system
+import argparse
+import sys
+import time
+
+#Numpy Library
+import numpy as np
+
 #Loudness Processing Library
 import pyloudnorm as pyln
 
-#Files
+#Files (No longer needed, but left for future use)
 import wave
 import soundfile
 
@@ -40,7 +39,7 @@ from app_setup import (
 	CHANNELS,
 	DURATION)
 
-# JRC: Resources - https://www.youtube.com/watch?v=at2NppqIZok and https://github.com/aniawsz/rtmonoaudio2midi
+# JCR: Resources - https://www.youtube.com/watch?v=at2NppqIZok and https://github.com/aniawsz/rtmonoaudio2midi
 class StreamProcessor(object):
 	def __init__(self, input_device, \
 				format = pyaudio.paFloat32, \
@@ -175,7 +174,7 @@ if __name__ == "__main__":
 	#Print API
 	print("OSC Networking Established")
 	print()
-	print("OSC API for Controlling OSCTranscribe:")
+	print("OSC API for Controlling OSCLufs:")
 	print("/OSCLufs/getLufs: Request a lufs reply")
 	print()
 	print("OSC API for Receiving Text from OSCLufs:")
