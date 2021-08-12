@@ -47,20 +47,13 @@ class StreamProcessor(object):
 				input = True, \
 				sample_rate = SAMPLE_RATE, \
 				frames_per_buffer = FRAMES_PER_BUFFER, \
-				channels = CHANNELS, \
-				min_loudness = MIN_LOUDNESS, \
-				duration = DURATION, \
-				file_name = "buffer.wav"):
+				channels = CHANNELS):
 		self._input_device = input_device
 		self._format = format
 		self._input = input
 		self._sample_rate = sample_rate
 		self._frames_per_buffer = frames_per_buffer
 		self._channels = channels
-		self._min_loudness = min_loudness
-		self._file_name = file_name
-		self._meter = pyln.Meter(sample_rate)
-		self._duration = duration
 
 	def run(self):
 		pya = pyaudio.PyAudio()
@@ -81,44 +74,15 @@ class StreamProcessor(object):
 		self._stream.close()
 		pya.terminate()
 
-	def _store_frame(self, data):
-		frames = []
-		for i in range(0, int(self._sample_rate / self._frames_per_buffer * self._duration)):
-			#data = self._stream.read(self._frames_per_buffer)
-			frames.append(data)
-
-		total_data = b''.join(frames)
-		data_samples = np.frombuffer(total_data,dtype=np.float32)
-
-		# Limiter lower output value
-		inmetiate_loudness  = self._meter.integrated_loudness(data_samples) # measure loudness
-		if(inmetiate_loudness < self._min_loudness):
-			self._loudness = self._min_loudness
-		else:
-			self._loudness = inmetiate_loudness
-
-		#conform the buffer to wav
-		#waveFile = wave.open(self._file_name, 'wb')
-		#waveFile.setnchannels(self._channels)
-		#waveFile.setsampwidth(audio_stream.get_sample_size(self._format))
-		#waveFile.setframerate(self._sample_rate)
-		#waveFile.writeframes(b''.join(frames))
-		#waveFile.close()
-
-	#def _calculate_lufs(self):
-		#pull in the wav for analysis
-		#dat, rt = soundfile.read(self._file_name)
-		#self._loudness = self._meter.integrated_loudness(dat) # measure loudness
-
 	def _process_frame(self, data, frame_count, time_info, status_flag):
-		self._store_frame(data)
-		#self._calculate_lufs()
+		self._data = data
 		return (data, pyaudio.paComplete)
 
-	def getLoudness(self):
-		ldns = self._loudness
-		#print(ldns)
-		return ldns
+	def getData(self):
+		data = self._data
+		self._data = None
+		#print(data)
+		return data
 
 audio_stream = pyaudio.PyAudio()
 
@@ -137,12 +101,41 @@ print("Please select the audio device to listen to:")
 micIndex = int(input())
 
 def getLufs(unused_addr):
-	#print("Running function!")
+	# print("Running getLufs function!")
+	# Initialize local variables
+	loudness = -70.0
+	frames = []
+
+	# Initialize meter
+	meter = pyln.Meter(SAMPLE_RATE)
+
+	# Initialize Audio capture
 	sp = StreamProcessor(micIndex)
-	sp.run()
+
+	# Capture audio frames for duration
+	for i in range(0, int(SAMPLE_RATE / FRAMES_PER_BUFFER * DURATION)):
+		sp.run()
+		data = sp.getData()
+		frames.append(data)
+
+	# Concatenate frames
+	total_data = b''.join(frames)
+	data_samples = np.frombuffer(total_data,dtype=np.float32)
+
+	# print("total data count:", len(total_data))
+	# print("data samples count", len(data_samples))
+
+	# Calculate loudness
+	inmediate_loudness = meter.integrated_loudness(data_samples) # measure loudness
+
+	# Limiter lower output value
+	if(inmediate_loudness < MIN_LOUDNESS):
+		loudness = MIN_LOUDNESS
+	else:
+		loudness = inmediate_loudness
 
 	#send the loundess as OSC
-	client.send_message("/OSCLufs/lufs", sp.getLoudness())
+	client.send_message("/OSCLufs/lufs", loudness)
 
 
 if __name__ == "__main__":
