@@ -3,11 +3,12 @@
 #Created and maintained by Andy Carluccio - Washington, D.C.
 
 #Contributors:
-#Juan C. Ramos - Mexico City, MX
+#Juan C. Robles - Mexico City, MX
 
 #Last updated 8/11/2021
 
 #OSC variables & libraries
+from app_setup import CHANNELS, FRAMES_PER_BUFFER, SAMPLE_RATE
 from pythonosc import dispatcher
 from pythonosc import osc_server
 from pythonosc import osc_message_builder
@@ -16,6 +17,7 @@ from pythonosc import udp_client
 #Argument management and system
 import argparse
 import sys
+import time
 
 #Numpy Library
 import numpy as np
@@ -29,6 +31,59 @@ import soundfile
 
 #Print the names of all available audio devices
 import pyaudio
+
+#App setup
+from app_setup import (
+    SAMPLE_RATE,
+	FRAMES_PER_BUFFER,
+	CHANNELS,
+	MIN_LOUDNESS,
+	DURATION)
+
+# JCR: Resources - https://www.youtube.com/watch?v=at2NppqIZok and https://github.com/aniawsz/rtmonoaudio2midi
+class StreamProcessor(object):
+	def __init__(self, input_device, \
+				format = pyaudio.paFloat32, \
+				input = True, \
+				sample_rate = SAMPLE_RATE, \
+				frames_per_buffer = FRAMES_PER_BUFFER, \
+				channels = CHANNELS):
+		self._input_device = input_device
+		self._format = format
+		self._input = input
+		self._sample_rate = sample_rate
+		self._frames_per_buffer = frames_per_buffer
+		self._channels = channels
+
+	def run(self):
+		pya = pyaudio.PyAudio()
+		self._stream = pya.open(
+			format=self._format,
+			channels=self._channels,
+			rate=self._sample_rate,
+			input=self._input,
+			frames_per_buffer=self._frames_per_buffer,
+			stream_callback=self._process_frame
+		)
+		self._stream.start_stream()
+
+		while self._stream.is_active(): #and not self._stream.raw_input():
+			time.sleep(0.1)
+
+		self._stream.stop_stream()
+		self._stream.close()
+		pya.terminate()
+
+	def _process_frame(self, data, frame_count, time_info, status_flag):
+		self._data = data
+		return (data, pyaudio.paComplete)
+
+	def getData(self):
+		data = self._data
+		self._data = None
+		#print(data)
+		return data
+
 audio_stream = pyaudio.PyAudio()
 
 print("ALL SYSTEM AUDIO DEVICES:")
@@ -45,48 +100,40 @@ print("Please select the audio device to listen to:")
 
 micIndex = int(input())
 
-#Other audio parameters
-form_1 = pyaudio.paFloat32 # 16-bit resolution
-chans = 2 # 2 channel
-samp_rate = 44100 # 44.1kHz sampling rate
-chunk = 1024 # 2^12 samples for buffer
-durr = 0.6 #durration of sample
-#file_name = "buffer.wav" #file name
-
-# create pyaudio stream
-stream = audio_stream.open(format = form_1,rate = samp_rate,channels = chans, \
-                    input_device_index = micIndex,input = True, \
-                    frames_per_buffer=chunk)
-
 def getLufs(unused_addr):
-	data = stream.read(chunk)
-	
+	# print("Running getLufs function!")
+	# Initialize local variables
+	loudness = -70.0
 	frames = []
-	for i in range(0, int(samp_rate / chunk * durr)):
-		data = stream.read(chunk)
+
+	# Initialize meter
+	meter = pyln.Meter(SAMPLE_RATE)
+
+	# Initialize Audio capture
+	sp = StreamProcessor(micIndex)
+
+	# Capture audio frames for duration
+	for i in range(0, int(SAMPLE_RATE / FRAMES_PER_BUFFER * DURATION)):
+		sp.run()
+		data = sp.getData()
 		frames.append(data)
 
+	# Concatenate frames
 	total_data = b''.join(frames)
 	data_samples = np.frombuffer(total_data,dtype=np.float32)
-	meter = pyln.Meter(samp_rate) # create BS.1770 meter
-	loudness = meter.integrated_loudness(data_samples) # measure loudness
-	
-	#conform the buffer to wav
-	#waveFile = wave.open(file_name, 'wb')
-	#waveFile.setnchannels(chans)
-	#waveFile.setsampwidth(audio_stream.get_sample_size(form_1))
-	#waveFile.setframerate(samp_rate)
-	#waveFile.writeframes(b''.join(frames))
-	#waveFile.close()
 
-	#pull in the wav for analysis
-	#dat, rt = soundfile.read("buffer.wav")
-	#print("File Data")
-	#print(dat)
-	#meter = pyln.Meter(rt) # create BS.1770 meter
-	#loudness = meter.integrated_loudness(dat) # measure loudness
-		
-	
+	# print("total data count:", len(total_data))
+	# print("data samples count", len(data_samples))
+
+	# Calculate loudness
+	inmediate_loudness = meter.integrated_loudness(data_samples) # measure loudness
+
+	# Limiter lower output value
+	if(inmediate_loudness < MIN_LOUDNESS):
+		loudness = MIN_LOUDNESS
+	else:
+		loudness = inmediate_loudness
+
 	#send the loundess as OSC
 	client.send_message("/OSCLufs/lufs", loudness)
 
