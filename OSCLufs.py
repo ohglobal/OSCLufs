@@ -60,6 +60,7 @@ class StreamProcessor(object):
 		self._stream = pya.open(
 			format=self._format,
 			channels=self._channels,
+			input_device_index=self._input_device,
 			rate=self._sample_rate,
 			input=self._input,
 			frames_per_buffer=self._frames_per_buffer,
